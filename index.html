@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="The AI Standup Analyzer reads your team's Slack standups and Jira tickets every morning and flags what's slipping before it becomes a problem.">
+<meta property="og:title" content="AI Project Bridge: AI Standup Analyzer">
+<meta property="og:description" content="What are you missing in your teams' standups? Join the early access list.">
+<meta property="og:image" content="https://aiprojectbridge.com/assets/hero.jpg">
+<meta property="og:url" content="https://aiprojectbridge.com/">
+<meta name="twitter:card" content="summary_large_image">
+<title>AI Project Bridge</title>
+<link rel="icon" href="assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Lato:wght@400;700&display=swap">
+<style>
+/* Layout: a night-to-sunrise hero band (the brand's bridge), then a quiet single column of sections on a cool tint, with a "standup vs Jira" proof panel as the one bold moment. */
+:root{
+  --navy:#2B3B6B; --navy-deep:#1E2A4F; --gold:#FFD166; --gold-ink:#9A6B00;
+  --steel:#9AA5B8; --tint:#E9EDF5;
+  --bg:#F6F8FC; --surface:#FFFFFF; --fg:#1E2A4F; --muted:#56607A; --line:#D6DCE8;
+  --flag:#C62828; --ok:#2E7D32;
+  --display:"Montserrat",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --body:"Lato",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --wrap:68rem;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#121A33; --surface:#1A2445; --fg:#E9EDF5; --muted:#A9B3C7; --line:#2E3A62;
+  --tint:#1F2A4E; --gold-ink:#FFD166; --flag:#EF6B6B; --ok:#6FCF7A; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121A33; --surface:#1A2445; --fg:#E9EDF5; --muted:#A9B3C7; --line:#2E3A62;
+  --tint:#1F2A4E; --gold-ink:#FFD166; --flag:#EF6B6B; --ok:#6FCF7A; color-scheme:dark}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{background:var(--bg);color:var(--fg);font:1.0625rem/1.65 var(--body);margin:0}
+.wrap{max-width:var(--wrap);margin-inline:auto;padding-inline:clamp(16px,4vw,32px)}
+h1,h2,h3{font-family:var(--display);line-height:1.15;text-wrap:balance;margin:0}
+h2{font-size:clamp(1.75rem,3.4vw,2.5rem);font-weight:800;letter-spacing:-.01em}
+h3{font-size:1.15rem;font-weight:700}
+p{margin:0}
+a{color:inherit}
+.eyebrow{font:700 .78rem/1 var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--gold-ink)}
+.bar{width:3.5rem;height:.35rem;border-radius:1rem;background:var(--gold)}
+.btn{display:inline-flex;align-items:center;gap:.5rem;font:700 1rem/1 var(--display);text-decoration:none;padding:.95rem 1.4rem;border-radius:.5rem;transition:transform .15s ease,box-shadow .15s ease}
+.btn:focus-visible{outline:3px solid var(--gold);outline-offset:3px}
+.btn-gold{background:var(--gold);color:#1E2A4F}
+.btn-gold:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(255,209,102,.35)}
+.btn-ghost{color:#fff;border:1.5px solid rgba(255,255,255,.55)}
+.btn-ghost:hover{border-color:#fff}
+
+/* Header */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:10;background:var(--navy-deep);color:#fff}
+.top::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:120px;background:var(--navy-deep)} /* fills any gap above the sticky bar (phone notch, app bars) */
+.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding-block:.7rem}
+.brand{display:flex;align-items:center;gap:.6rem;text-decoration:none;font:800 1.1rem/1 var(--display);white-space:nowrap}
+.brand .mark{width:44px;height:30px;display:block}
+.brand b{color:var(--gold)}
+.nav{display:flex;align-items:center;gap:1.4rem;font:600 .92rem/1 var(--display)}
+.nav a{text-decoration:none;opacity:.85}
+.nav a:hover{opacity:1}
+.nav .btn{padding:.65rem 1rem;font-size:.9rem;opacity:1}
+@media (max-width:760px){.nav a:not(.btn){display:none}}
+
+/* Hero */
+/* The hero art is shown whole (never cropped or upscaled past its 2400 px source); the sky and water continue to the left in matching colors. */
+.hero{position:relative;color:#fff;overflow:hidden;display:flex;align-items:center;min-height:clamp(480px,40vw,620px);
+  background:linear-gradient(180deg,#141e3c 0%,#192448 25%,#202e5a 50%,#263566 62.5%,#2b3b74 74.6%,#2b3b6b 74.8%,#293967 100%)}
+/* The bridge art is pinned to the right edge of the content column, so on wide screens it stays next to the headline; its outer edges fade into the sky. */
+.hero-art{position:absolute;top:0;bottom:0;right:max(0px,calc((100% - var(--wrap)) / 2 - 4rem));aspect-ratio:2/1;height:100%;
+  background:url(assets/hero.jpg) center bottom/cover no-repeat;
+  -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 15%,#000 80%,rgba(0,0,0,.55) 90%,transparent 100%);
+  mask-image:linear-gradient(90deg,transparent 0,#000 15%,#000 80%,rgba(0,0,0,.55) 90%,transparent 100%)}
+.hero::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(20,30,60,.55) 0%,rgba(20,30,60,.25) 40%,rgba(20,30,60,0) 60%)}
+.hero .wrap{position:relative;z-index:1;width:100%;padding-block:clamp(3rem,7vw,5rem)}
+.hero-copy{max-width:36rem;display:grid;gap:1.4rem}
+.hero h1{font-size:clamp(2.3rem,5.6vw,3.9rem);font-weight:800;letter-spacing:-.02em}
+.hero .lede{font-size:clamp(1.08rem,1.6vw,1.25rem);color:#E9EDF5;max-width:32rem}
+.hero .eyebrow{color:var(--gold)}
+.ctas{display:flex;flex-wrap:wrap;gap:.8rem;margin-top:.4rem}
+.for{font-size:.95rem;color:#C9D1E3}
+@media (max-width:700px){.hero-art{right:-22%;opacity:.45}.hero::after{background:linear-gradient(180deg,rgba(20,30,60,.85) 0%,rgba(20,30,60,.7) 55%,rgba(20,30,60,.2) 100%)}}
+
+section{padding-block:clamp(3.5rem,8vw,6rem)}
+.head{display:grid;gap:1rem;max-width:44rem;margin-bottom:2.5rem}
+.head p{color:var(--muted);font-size:1.12rem}
+
+/* Problem */
+.problem{background:var(--surface);border-bottom:1px solid var(--line)}
+.count{display:grid;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:.6rem;overflow:hidden}
+.count div{background:var(--surface);padding:1.4rem 1.5rem;display:grid;gap:.3rem}
+.count strong{font:800 2.4rem/1 var(--display);color:var(--navy);font-variant-numeric:tabular-nums}
+:root[data-theme="dark"] .count strong{color:var(--gold)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .count strong{color:var(--gold)}}
+.count span{color:var(--muted);font-size:.95rem}
+.count-note{margin-top:1rem;font-size:.85rem;color:var(--muted)}
+
+/* Proof panel: standup vs Jira */
+.catch-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:clamp(1.5rem,4vw,3.5rem);align-items:start}
+@media (max-width:860px){.catch-grid{grid-template-columns:minmax(0,1fr)}}
+.flags{list-style:none;padding:0;margin:0;display:grid;gap:1rem}
+.flags li{display:grid;grid-template-columns:.8rem 1fr;gap:.9rem;align-items:baseline}
+.flags li::before{content:"";width:.7rem;height:.7rem;border-radius:50%;background:var(--flag);transform:translateY(.05rem)}
+.plus{margin-top:1.6rem;padding:1.1rem 1.25rem;border-radius:.5rem;background:var(--tint)}
+.plus b{color:var(--ok)}
+.proof{background:var(--navy-deep);color:#E9EDF5;border-radius:.8rem;padding:1.4rem;display:grid;gap:1rem;box-shadow:0 20px 50px rgba(30,42,79,.25)}
+.src{display:grid;gap:.5rem}
+.src-label{font:700 .72rem/1 var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--steel)}
+.post{background:#24315C;border-radius:.5rem;padding:.9rem 1rem;font-size:.95rem;display:grid;gap:.35rem}
+.post .who{font-weight:700;color:#fff}
+.post .who small{font-weight:400;color:var(--steel);margin-left:.4rem}
+.post .day{font:600 .72rem/1 var(--mono);color:var(--gold);letter-spacing:.04em}
+.ticket{font-family:var(--mono);font-size:.85rem;background:#24315C;border-radius:.5rem;padding:.8rem 1rem;display:grid;grid-template-columns:auto 1fr auto;gap:.3rem .9rem;align-items:center}
+.ticket .k{color:#9FC3FF;text-decoration:underline}
+.ticket .st{font-family:var(--body);font-size:.75rem;font-weight:700;padding:.2rem .5rem;border-radius:.3rem;background:#C62828;color:#fff;white-space:nowrap}
+.ticket .st.ip{background:#3D5BA9}
+.ticket .meta{grid-column:2/4;color:var(--steel);font-size:.78rem}
+.verdict{border:1.5px solid var(--gold);border-radius:.5rem;padding:.9rem 1rem;display:grid;gap:.3rem;background:rgba(255,209,102,.08)}
+.verdict .t{font:800 .95rem/1.3 var(--display);color:var(--gold)}
+.verdict p{font-size:.92rem}
+.caption{font-size:.8rem;color:var(--steel)}
+
+/* How it works (a real sequence) */
+.how{background:var(--surface);border-block:1px solid var(--line)}
+.steps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(1rem,3vw,2rem);counter-reset:s}
+@media (max-width:760px){.steps{grid-template-columns:minmax(0,1fr)}}
+.steps li{counter-increment:s;display:grid;gap:.6rem;align-content:start;padding-top:1.1rem;border-top:3px solid var(--navy)}
+:root[data-theme="dark"] .steps li{border-top-color:var(--gold)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .steps li{border-top-color:var(--gold)}}
+.steps li::before{content:"Step " counter(s);font:700 .75rem/1 var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--gold-ink)}
+.steps p{color:var(--muted)}
+.steps li p+p{margin-top:.2rem}
+.steps p b{color:var(--fg)}
+details p a{color:var(--fg);text-decoration-color:var(--gold);text-underline-offset:3px}
+
+/* Reports */
+.reports{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:clamp(1.5rem,4vw,3.5rem);align-items:center}
+@media (max-width:860px){.reports{grid-template-columns:minmax(0,1fr)}}
+.rlist{display:grid;gap:1rem}
+.r{display:grid;grid-template-columns:1fr auto;gap:.25rem 1rem;padding:1rem 1.1rem;background:var(--surface);border:1px solid var(--line);border-radius:.5rem;border-left:5px solid var(--navy)}
+.r.red{border-left-color:var(--flag)}
+.r.det{border-left-color:#3D5BA9}
+.r p{grid-column:1/-1;color:var(--muted);font-size:.98rem}
+.r .when{font:700 .72rem/1.6 var(--display);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+figure{margin:0;display:grid;gap:.6rem}
+figure img{display:block;width:100%;height:auto;border-radius:.5rem;border:1px solid var(--line);box-shadow:0 18px 40px rgba(30,42,79,.18)}
+figcaption{font-size:.85rem;color:var(--muted)}
+
+/* Run cost */
+.run{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(1.5rem,4vw,3rem);align-items:center}
+@media (max-width:760px){.run{grid-template-columns:minmax(0,1fr)}}
+.checks{list-style:none;margin:0;padding:0;display:grid;gap:1rem;font-size:1.08rem}
+.checks li{display:grid;grid-template-columns:1.6rem 1fr;gap:.8rem;align-items:start}
+.checks li::before{content:"✓";display:grid;place-items:center;width:1.6rem;height:1.6rem;border-radius:.35rem;background:var(--navy);color:var(--gold);font-weight:700;font-size:.95rem}
+.cost{background:var(--navy);color:#fff;border-radius:.8rem;padding:clamp(1.5rem,4vw,2.2rem);display:grid;gap:1rem;font-size:1.12rem}
+.cost b{color:var(--gold);font-family:var(--display)}
+.cost small{color:#C9D1E3;font-size:.88rem}
+
+/* About */
+.about{background:var(--tint)}
+.about-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:clamp(1.5rem,4vw,3rem);align-items:start}
+@media (max-width:760px){.about-grid{grid-template-columns:minmax(0,1fr)}}
+.about-copy{display:grid;gap:1rem;max-width:38rem}
+.byline{display:flex;align-items:center;gap:1rem}
+.byline img{width:84px;height:84px;border-radius:50%;object-fit:cover;border:3px solid var(--gold);flex:none}
+.byline div{display:grid;gap:.15rem}
+.byline strong{font:800 1.15rem/1.2 var(--display)}
+.byline span{color:var(--muted);font-size:.95rem}
+.stats{display:grid;gap:1rem}
+.stat{background:var(--surface);border-radius:.5rem;padding:1.1rem 1.25rem;display:grid;gap:.2rem}
+.stat strong{font:800 1.9rem/1.1 var(--display);color:var(--fg);font-variant-numeric:tabular-nums}
+.stat span{color:var(--muted);font-size:.95rem}
+
+/* FAQ */
+.faq{display:grid;gap:.6rem;max-width:48rem}
+details{background:var(--surface);border:1px solid var(--line);border-radius:.5rem;padding:0 1.2rem}
+summary{cursor:pointer;list-style:none;padding:1.05rem 0;font:700 1.02rem/1.35 var(--display);display:flex;justify-content:space-between;gap:1rem}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";color:var(--gold-ink);font-size:1.3rem;line-height:1}
+details[open] summary::after{content:"–"}
+summary:focus-visible{outline:2px solid var(--gold);outline-offset:4px}
+details p{padding-bottom:1.1rem;color:var(--muted)}
+
+/* Closing CTA */
+.close{background:var(--navy-deep);color:#fff;text-align:left}
+.close .wrap{display:grid;gap:1.2rem;max-width:44rem;margin-inline:auto}
+.close p{color:#C9D1E3;font-size:1.12rem}
+footer{background:var(--navy-deep);color:#9AA5B8;border-top:1px solid rgba(255,255,255,.08);font-size:.88rem}
+footer .wrap{display:flex;flex-wrap:wrap;justify-content:space-between;gap:.6rem;padding-block:1.4rem}
+/* Phone sizes for the step labels; placed last so they win over the base rules above. */
+@media (max-width:760px){.steps li::before{font-size:1.1rem}.steps h3{font-size:1.3rem}}
+</style>
+
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#top"><svg class="mark" viewBox="0 0 64 44" aria-hidden="true"><g fill="none" stroke-linecap="round"><path d="M8 36 Q32 -6 56 36" stroke="#9AA5B8" stroke-width="3.2"/><path d="M32 15 Q45 15 56 36" stroke="#FFD166" stroke-width="3.2"/><g stroke="#9AA5B8" stroke-width="1.6" stroke-dasharray="2 2"><path d="M17 24V36"/><path d="M23 18.5V36"/><path d="M28 16V36"/></g><g stroke="#FFD166" stroke-width="1.8"><path d="M36 15.6V36"/><path d="M41 17V36"/><path d="M46 20V36"/><path d="M51 25.5V36"/></g><path d="M4 36.5H60" stroke="#9AA5B8" stroke-width="3"/><path d="M32 36.5H60" stroke="#FFD166" stroke-width="3"/></g><rect x="9" y="37" width="3.4" height="6" fill="#9AA5B8"/><rect x="51.6" y="37" width="3.4" height="6" fill="#E9A23B"/><g fill="#FFF1B8"><circle cx="36" cy="15.6" r="1.6"/><circle cx="41" cy="17" r="1.6"/><circle cx="46" cy="20" r="1.6"/></g></svg><span><b>AI</b> Project Bridge</span></a>
+    <nav class="nav" aria-label="Main">
+      <a href="#how">How it works</a>
+      <a href="#reports">Reports</a>
+      <a href="#about">About</a>
+      <a href="#faq">FAQ</a>
+      <a class="btn btn-gold" href="https://docs.google.com/forms/d/e/1FAIpQLSd0HYWS4_3I8JqdrKylmYAepF0yhAcwYQe4J2Fj1Sa0DZFdmg/viewform">Early access</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+  <div class="hero">
+    <div class="hero-art" aria-hidden="true"></div>
+    <div class="wrap">
+      <div class="hero-copy">
+        <span class="eyebrow">AI Standup Analyzer</span>
+        <h1>What are you missing in your teams' standups?</h1>
+        <p class="lede">The AI Standup Analyzer reads your team's Slack standups and Jira tickets every morning and flags what's slipping before it becomes a problem.</p>
+        <div class="ctas">
+          <a class="btn btn-gold" href="https://docs.google.com/forms/d/e/1FAIpQLSd0HYWS4_3I8JqdrKylmYAepF0yhAcwYQe4J2Fj1Sa0DZFdmg/viewform">Join the early access list</a>
+          <a class="btn btn-ghost" href="#reports">See a sample report</a>
+        </div>
+        <p class="for">For project managers and anyone who leads software teams.</p>
+      </div>
+    </div>
+  </div>
+
+  <section class="problem">
+    <div class="wrap">
+      <div class="head">
+        <div class="bar"></div>
+        <h2>More teams. More time zones. Over 100 standups a week.</h2>
+        <p>The warning signs are in there. They're just buried in posts that arrive all day, from people in different time zones, about tickets that live somewhere else.</p>
+      </div>
+      <div class="count">
+        <div><strong>25</strong><span>people across several teams</span></div>
+        <div><strong>5</strong><span>standups each, every week</span></div>
+        <div><strong>125</strong><span>posts to track and react to, every week</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="catches">
+    <div class="wrap catch-grid">
+      <div>
+        <div class="head">
+          <div class="bar"></div>
+          <h2>Blockers, risks and wins in plain words</h2>
+          <p>The AI Standup Analyzer reads every standup post and checks it against Jira, so it catches what a quick skim misses.</p>
+        </div>
+        <ul class="flags">
+          <li>The same blocker showing up day after day</li>
+          <li>Work "still in progress" day after day, with nothing moving in Jira</li>
+          <li>"No blockers" in standup while Jira says otherwise</li>
+          <li>Missed check-ins</li>
+          <li>Work paused and never picked back up</li>
+        </ul>
+        <p class="plus"><b>Plus:</b> a health check for each team, trends for each person, and wins worth celebrating with your team and their supervisors.</p>
+      </div>
+
+      <div class="proof" aria-label="Example: a standup post compared with Jira">
+        <div class="src">
+          <span class="src-label">What Slack says</span>
+          <div class="post">
+            <span class="day">FRI OCT 2 · SAME BLOCKER, 5TH STANDUP IN A ROW</span>
+            <span class="who">Othmar Ammann <small>#launch-deposits</small></span>
+            <span>"No ETA yet. Still working on it with them."</span>
+          </div>
+        </div>
+        <div class="src">
+          <span class="src-label">What Jira says</span>
+          <div class="ticket">
+            <span class="k">GWB-14</span><span>Production API keys</span><span class="st">Blocked</span>
+            <span class="meta">Due Sep 10 · holds up 4 other tickets</span>
+          </div>
+        </div>
+        <div class="verdict">
+          <span class="t">⚑ The same blocker, day after day, and it's holding up the launch</span>
+          <p>Your report flags it and suggests the question to ask: "What date has Hosting committed to for the production keys, and who can escalate if there is none?"</p>
+        </div>
+        <span class="caption">From a real report on the demo company. Fictional people and data.</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="how" id="how">
+    <div class="wrap">
+      <div class="head">
+        <div class="bar"></div>
+        <h2>How it works</h2>
+        <p>It runs in a Google Sheet in your own Google account. Your team's standups and tickets stay in your own accounts: they go only to your Google Drive and the AI provider you pick, never to us. No new logins for your team.</p>
+      </div>
+      <ol class="steps">
+        <li><h3>Collect</h3><p>It gathers your teams' standup posts from Slack and their tickets from Jira into one standup bundle.</p></li>
+        <li><h3>Analyze</h3><p>Your own AI reads the bundle and writes the reports. Two ways to connect it:</p><p><b>Automatic, with an AI key:</b> the Sheet sends the bundle to your Claude, ChatGPT or Gemini account using an AI key, a private code from that account. Your AI provider bills you directly.</p><p><b>Manual, copy and paste with no key:</b> you copy the bundle into your own AI chat, then paste its reply back into the Sheet. Free.</p></li>
+        <li><h3>Report</h3><p>Your reports arrive in your email and in your Google Drive on the mornings you pick, or any time you ask from the Sheet's menu.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="reports">
+    <div class="wrap reports">
+      <div>
+        <div class="head">
+          <div class="bar"></div>
+          <h2>Quick alerts or the full story</h2>
+        </div>
+        <div class="rlist">
+          <div class="r red"><h3>Red Flags</h3><span class="when">Daily</span><p>What needs you today, in a short email.</p></div>
+          <div class="r"><h3>Summary</h3><span class="when">Weekly</span><p>One page: team health, risks and wins.</p></div>
+          <div class="r det"><h3>Detailed</h3><span class="when">Weekly</span><p>The evidence behind every flag, with every ticket linked.</p></div>
+        </div>
+      </div>
+      <figure>
+        <img src="assets/report-summary.png" alt="Page 1 of a Summary report: headline, four stat tiles and a three-week timeline for the Deposits Pilot." width="1474" height="1648">
+        <figcaption>Summary report. Demo company, fictional data.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="how" id="cost">
+    <div class="wrap run">
+      <div>
+        <div class="head">
+          <div class="bar"></div>
+          <h2>Easy to start. Cheap or free to run.</h2>
+        </div>
+        <ul class="checks">
+          <li>Runs in Google Sheets</li>
+          <li>Works with Jira and Slack, free plans included</li>
+          <li>Uses your own Claude, ChatGPT or Gemini account</li>
+        </ul>
+      </div>
+      <div class="cost">
+        <p><b>Less than $1 a week in AI costs,</b> billed directly by your own AI provider.</p>
+        <small>A typical week: the Summary and Detailed reports once a week, plus Red Flags emails on the mornings you pick.</small>
+        <p><b>Free to run</b> if you copy and paste.</p>
+        <small>Your standups and tickets go from your Slack and Jira, through your own Google account, to your own AI provider. AI Project Bridge never sees them.</small>
+      </div>
+    </div>
+  </section>
+
+  <section class="about" id="about">
+    <div class="wrap about-grid">
+      <div class="about-copy">
+        <div class="byline"><img src="assets/philip-culver.jpg" alt="Philip Culver" width="160" height="160"><div><strong>Philip Culver</strong><span>Founder, AI Project Bridge</span></div></div>
+        <h2>Built by a project manager, for people who lead software teams</h2>
+        <p>I've spent 20 years in project management. As Director of Operations, I led a team of project managers while still running engineering projects myself.</p>
+        <p>My teams ran async standups in Slack across the country. Posts arrived all day, and keeping them straight, and spotting who was stuck, was a job in itself. I read them every day, but spotting patterns across days and people was hard. So I had AI review them with me, check them against Jira, and point out what needed my attention.</p>
+        <p>AI and automation did the busywork, so my time went to people and decisions. AI Project Bridge is where I'm packaging what worked, one tool at a time.</p>
+      </div>
+      <div class="stats">
+        <div class="stat"><strong>3 → 6</strong><span>teams I ran personally, without doubling my hours</span></div>
+        <div class="stat"><strong>50%</strong><span>drop in average cycle time, 13.65 to 6.79 days</span></div>
+        <div class="stat"><strong>20 years</strong><span>in project management (PMP, CSM)</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="faq">
+    <div class="wrap">
+      <div class="head">
+        <div class="bar"></div>
+        <h2>Questions</h2>
+      </div>
+      <div class="faq">
+        <details><summary>Who is it for?</summary><p>Project managers, product managers, engineering managers, and anyone whose teams post daily standups in Slack and track work in Jira.</p></details>
+        <details><summary>What do I need to run it?</summary><p>A Google account for the Sheet, your team's Slack and Jira (free plans work), and either an AI account (Claude, ChatGPT or Gemini) or a chat window to paste into. If your Slack needs an admin to approve new apps, the setup guide includes a note you can send them.</p></details>
+        <details><summary>What does it cost to run?</summary><p>With an AI key, a normal week costs well under $1, billed by your own AI provider. With copy and paste, it's free.</p></details>
+        <details><summary>Where does my team's data go?</summary><p>The Analyzer runs inside a Google Sheet in your own Google account. It reads Slack and Jira with your own keys, saves the standup bundle and reports to your own Google Drive, and sends the bundle only to the AI provider you choose, on your own account. AI Project Bridge never receives your standups, tickets or keys. With copy and paste, nothing is sent to any AI automatically.</p></details>
+        <details><summary>Does it work with Microsoft Teams or Microsoft 365?</summary><p>Slack, Jira and Google Sheets come first. Tell me on the <a href="https://docs.google.com/forms/d/e/1FAIpQLSd0HYWS4_3I8JqdrKylmYAepF0yhAcwYQe4J2Fj1Sa0DZFdmg/viewform">early access form</a> what your team uses; it decides what I build next.</p></details>
+        <details><summary>When can I get it?</summary><p>People on the <a href="https://docs.google.com/forms/d/e/1FAIpQLSd0HYWS4_3I8JqdrKylmYAepF0yhAcwYQe4J2Fj1Sa0DZFdmg/viewform">early access list</a> hear first. Join the list and tell me what takes up too much of your time each week.</p></details>
+        <details><summary>Who are James Finley and Tessory?</summary><p>They're a demo project manager and a demo company I created to show the Analyzer working on realistic data. Every name, ticket and standup in the screenshots is fictional.</p></details>
+      </div>
+    </div>
+  </section>
+
+  <section class="close">
+    <div class="wrap">
+      <span class="eyebrow">Early access</span>
+      <h2>What should I build next?</h2>
+      <p>Join the early access list and tell me what takes up too much of your time each week. You'll be first in line.</p>
+      <div class="ctas"><a class="btn btn-gold" href="https://docs.google.com/forms/d/e/1FAIpQLSd0HYWS4_3I8JqdrKylmYAepF0yhAcwYQe4J2Fj1Sa0DZFdmg/viewform">Join the early access list</a></div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 AI Project Bridge</span>
+    <span>hello@aiprojectbridge.com</span>
+  </div>
+</footer>
+
+</body>
+</html>
